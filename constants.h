@@ -39,5 +39,7 @@ extern const char* VNAME_START_ERR;
 extern const char* VNAME_MACRO_ERR;
 extern const char* VAR_NAME_EXTS_ERR;
 extern const char* EXPECTED_FORMAT;
+extern const char* CHANGE_EXPECTED_FORMAT;
+extern const char* INVALID_NUMBER_ERR;
 
 
