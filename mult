@@ -1,0 +1,12 @@
+//mult x1 x2 y
+2 //length
+2 //num_input
+x1 
+x2 
+u //auxillary
+y //response
+
+1, x1, z, 3
+2, add z x2 u z 1
+
+

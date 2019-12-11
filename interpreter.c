@@ -1,6 +1,5 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
 #include <stdbool.h>
@@ -13,6 +12,7 @@
 /*
 MACROS cannot be numbers , keywords
 SCANF 
+multiple outputs
 */
 // Defining Types
 typedef enum 
@@ -43,8 +43,6 @@ typedef enum
     UNDEF
 
 } cmdline_type;
-
-
 
 // DEFINING ALL STRUCTS
 typedef struct prog_vars_t 
@@ -93,7 +91,6 @@ typedef struct code_t
 } code_line;
 
 
-
 typedef struct macros_t 
 {
     char* prog_name;                    /* key */
@@ -139,6 +136,13 @@ typedef struct line_res_t
 } line_res;
 
 
+
+typedef struct lines_referred_by_t
+{
+    int i;                      /* key: line number that refers to the curr_line */
+    UT_hash_handle hh;         /* makes this structure hashable */
+} lines_referred_by;
+
 //Defining constants
 all_macros* defined_progs = NULL;
 
@@ -150,6 +154,13 @@ void interpreter_mode();
 void new_program();
 int eval(int i, char* cmdline, code_line* code_line, prog_vars_set* all_vars);
 
+
+void err_print(const char* ERR_MSG)
+{
+    printf("\033[1;31m");
+    printf("\t%s", ERR_MSG);
+    printf("\033[0m");
+}
 char* set_program_name()
 {
     char* name = malloc(20* sizeof(char));
@@ -207,27 +218,25 @@ bool check_vname_valid(char* var_name, prog_vars_set* all_vars)
     if(!check_char(var_name[0]))
     {
         printf("\033[1;31m");
-        printf("^ %s\n", VNAME_START_ERR);
+        printf("\t%s\n", var_name);
+        printf("\t^ %s\n", VNAME_START_ERR);
         printf("\033[0m");
         return false;
     }
 
     int c = 1;
-    char err_msg[strlen(var_name)];
+    char err_msg[strlen(var_name)+1];
     strcpy(err_msg, " ");
-
+    char* ln_err =  "%s^Variable names can only have letters/numbers \n";
+    char fin_err[strlen(ln_err)+ strlen(var_name)+1];
     while(var_name[c]!= '\0')
     {
         if(!(check_char(var_name[c]) || isdigit(var_name[c])))
         {
-            printf("\033[1;31m");
-            printf("\nVAR_NAME_ERROR:");
-            printf("\033[0m");
+            
             printf("\t%s\n", var_name);
-
-            printf("\t%s^ Variable names can only have letters/numbers \n", err_msg);
-
-
+            sprintf(fin_err, ln_err, err_msg);
+            err_print(fin_err);
             return false;
         }
         
@@ -241,9 +250,8 @@ bool check_vname_valid(char* var_name, prog_vars_set* all_vars)
 
     if(var != NULL)
     {
-        printf("\033[1;31m");
-        printf("%s\n", VAR_NAME_EXTS_ERR);
-        printf("\033[0m");
+        err_print(VAR_NAME_EXTS_ERR);
+        printf("\n");
         return false;
     }
 
@@ -272,6 +280,8 @@ prog_vars_set* create_vars()
     bool is_valid = true;
     char* temp;
     prog_vars_set* to_add;
+    prog_vars_set* z_var;
+
     printf("%s", NUM_VARS_MSG );
     char* val = malloc(129*sizeof(char));
     scanf("%s", val);
@@ -296,12 +306,15 @@ prog_vars_set* create_vars()
     {
         return all_vars;
     }
-
+    temp = malloc(2 * sizeof(char)) ;
+    strcpy(temp, "z");
+    z_var = malloc(sizeof(prog_vars_set));
+    z_var -> var_name =  temp;
     printf("%s\n", P_VAR_NAMES);
+    HASH_ADD_STR(all_vars, var_name, z_var);
     
     for(int i = 0; i<num_vars; i++)
     {
-        //Size of vars
         temp = malloc(16 * sizeof(char)) ;
         to_add = malloc(sizeof(prog_vars_set));
         printf("%d:  ", i+1);
@@ -371,13 +384,13 @@ parse_type exec(char *cmdline)
 
 void free_code(code_line** code, int n)
 {  
-    int i= 0;
+    int i = 1;
     var_line* var;
     macro_line* macro;
     prog_vars_refs* vref;
     prog_vars_refs* tmp;
 
-    while(i < n && code[i]!= NULL)
+    while(i <= n && code[i]!= NULL)
     {
         if(code[i]-> line != NULL)
             free(code[i] -> line);
@@ -388,8 +401,10 @@ void free_code(code_line** code, int n)
                 var = code[i] -> pv -> var;
                 if(var!=NULL)
                 {
-                    free(var -> vars[0]);
-                    free(var -> vars[1]);
+                    if(!var-> vars[0])
+                        free(var -> vars[0]);
+                    if(!var-> vars[1])
+                        free(var -> vars[1]);
                     free(var);
                 }
 
@@ -403,7 +418,7 @@ void free_code(code_line** code, int n)
                     HASH_ITER(hh, macro -> vrefs, vref, tmp) 
                     {
                         HASH_DEL( macro -> vrefs, vref);  /* delete; users advances to next */
-                        free(vref);            /* optional- if you want to free  */
+                        free(vref);            
                     } 
 
                 }
@@ -420,30 +435,44 @@ void free_code(code_line** code, int n)
 
 void process_program(int n, prog_vars_set* all_vars, char* prog_name, char* res_vname)
 {
-    int i = 0;
-    code_line** code = malloc(n*sizeof(code_line*));
+    int i = 1;
+    code_line** code = malloc((n+1)*sizeof(code_line*));
     int line_no;
-    
     extract_num* line_no_ext;
+    lines_referred_by** refd = malloc((n+1) * sizeof(lines_referred_by*));
+    lines_referred_by* to_add_refd;
+    lines_referred_by* found_ref;
+    lines_referred_by* tmp;
+    int line_ref;
     //char* line;
     printf(">>> Start Program %s\n", prog_name);
     int new;
     int new_l;
-
     code_line* new_code_line;
 
-    while(i<n)
+    for(int j = 1; j<=n ; j++)
+        refd[i] = NULL;
+
+    while(i<=n)
     {
         code[i] = malloc(sizeof(code_line));
         code[i] -> line = malloc(129* sizeof(char));
         char save_opt = 'k';
         printf("... %d, ", i);
         scanf(" %[^\n]", code[i] -> line);
+        
+        if(i<n)
+        {
+            to_add_refd = malloc(sizeof(lines_referred_by));
+            to_add_refd -> i = i;
+            HASH_ADD_INT( refd[i+1], i, to_add_refd );
+        }
+
         switch(exec(code[i] -> line))
         {
             case EXIT:
                 printf("EXIT\n");
-                free_code(code, n);
+                free_code(code, i);
                 exit(0);
 
             case TO_EVAL:
@@ -453,6 +482,30 @@ void process_program(int n, prog_vars_set* all_vars, char* prog_name, char* res_
                 {
                     free(code[i]-> line);
                     free(code[i]);
+                }
+                else
+                {
+                    switch(code[i]-> linet)
+                    {
+                        case VAR:
+                            to_add_refd = malloc(sizeof(lines_referred_by));
+                            to_add_refd -> i = i;
+                            line_ref = code[i]-> pv-> var-> i;
+                            if(line_ref<n && line_ref!= (i+1))
+                            {
+                                HASH_ADD_INT( refd[line_ref], i, to_add_refd );
+                            }
+                            else
+                            {
+                                free(to_add_refd);
+                            }
+                            break;
+
+                        default:
+                            break;
+                    }
+
+
                 }
 
                 i = new;
@@ -510,6 +563,7 @@ void process_program(int n, prog_vars_set* all_vars, char* prog_name, char* res_
                     printf("\t> %s\n", LINE_CHANGE_SUCCESS_MSG);
                 }
 
+
                 
 
                 break;                
@@ -526,8 +580,11 @@ void process_program(int n, prog_vars_set* all_vars, char* prog_name, char* res_
                 break;
 
             case REF_LINE:
-            
-                printf("WUT");
+                HASH_ITER(hh, refd[i], found_ref, tmp) 
+                {
+                    printf("> %d, %s\n", found_ref->i, code[found_ref->i]-> line);
+                } 
+
                 break;
 
             default:
@@ -594,7 +651,7 @@ char *substr(char *dst, char *src, size_t offset, size_t length)
 
 void display_code(code_line** code, int line_nums)
 {
-    for(int i = 0; i< line_nums; i++)
+    for(int i = 1; i<= line_nums; i++)
     {
         printf("\n... %d, %s", i, code[i]->line);
     }
@@ -613,7 +670,8 @@ int process_macro_line(int i, code_line* cline, char* macros_name, char* remaini
     HASH_FIND_STR(defined_progs, macros_name, macro);
     if(macro == NULL)
     {
-        printf("^\nNo macro named %s found\n", macros_name);
+
+        printf("\t^\nNo macro named %s found\n", macros_name);
         return i;
     }
 
@@ -850,19 +908,20 @@ int execute_code(prog_vars_vals* init_var_vals, all_macros* macro)
     bool check_fin;
     prog_vars_vals* curr_var_vals;
     int n;
-
     curr_var_vals = init_var_vals;
-
     n = macro -> line_nums;
-    vars_line = calloc(n, sizeof(prog_vars_vals*));
-    int i = 0;
+    vars_line = calloc(n+1, sizeof(prog_vars_vals*));
+    int i = 1;
     code = macro -> code;
     prog_vars_vals* to_add_m;
     prog_vars_vals* var_v;
+    printf("Num lines = %d\n",n );
     
-    while(i < n)
+    while(i <= n)
     {
+        printf("%d\n", i );
         curr_cline = code[i];
+        printf("OK\n");
 
         switch(curr_cline->linet)
         {
@@ -874,8 +933,9 @@ int execute_code(prog_vars_vals* init_var_vals, all_macros* macro)
                 nvar1 =  malloc(sizeof(prog_vars_vals));
                 nvar1 -> var_name = var1_name;
                 nvar1 -> value =  var1-> value - var2 -> value;
-                curr_var_vals = var_dict_copy(curr_var_vals);
+                printf("%s: %d\n",nvar1 -> var_name,  nvar1 -> value);
                 HASH_DEL(curr_var_vals, var1);
+                curr_var_vals = var_dict_copy(curr_var_vals);
                 HASH_ADD_STR(curr_var_vals, var_name, nvar1);
                 check_fin = is_diff(vars_line[i], curr_var_vals);
                 if(!check_fin)
@@ -888,6 +948,7 @@ int execute_code(prog_vars_vals* init_var_vals, all_macros* macro)
                 if(nvar1 -> value == 0)
                 {
                     i = curr_cline -> pv-> var -> i;
+                    
                 }
                 else 
                 {
@@ -947,7 +1008,7 @@ int run(char* cmdline)
         return -1;
     }
     int n = macro -> line_nums;
-    all_var_vals =  malloc(n* sizeof(prog_vars_vals*));
+    all_var_vals =  malloc((n+1)* sizeof(prog_vars_vals*));
 
     char* display = malloc(2*sizeof(char));
     printf("\n%s", DISPLAY_MACRO_MSG);
@@ -962,9 +1023,15 @@ int run(char* cmdline)
     }
 
     printf("\nEnter variables\n");
+    prog_vars_vals* z_var = malloc(sizeof(prog_vars_vals));
+    z_var -> var_name = "z";
+    z_var -> value =  1;
+    HASH_ADD_STR(var_vals, var_name, z_var);
 
     for(vars = macro->all_vars; vars != NULL; vars = vars->hh.next) 
     {
+        if(!strcmp(vars-> var_name, "z"))
+            continue;
         prog_vars_vals* new_var = malloc(sizeof(prog_vars_vals));
         new_var -> var_name = vars -> var_name;
         printf("%s: ", vars->var_name);
@@ -1008,7 +1075,8 @@ void interpreter_mode()
 
         else if(!strncmp(input+c, "run", 3))
         {
-            run(input+3);
+            int res = run(input+3);
+            printf("RESULT : %d\n", res);
         }
 
         else if(!strncmp(input+c, "exit", 4))
@@ -1039,7 +1107,6 @@ void help()
 int main(int argc, char **argv)
 {
     int opt;
-
 	while ((opt = getopt(argc, argv, "hn:if:")) != -1) 
 	{
         switch (opt) 
@@ -1068,7 +1135,4 @@ int main(int argc, char **argv)
 
         }
     }
-
-
 }
-

@@ -1,0 +1,11 @@
+//add x1 x2 y
+3 //length
+3 //num_input
+x1 
+x2 
+u
+y //response
+
+1, u, x1, 2 
+2, u, x2, 3
+3, y, u, 4
