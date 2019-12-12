@@ -9,7 +9,6 @@ n // 0
 t2 
 t3
 t1 //response
-
 1, u, z, 13 // u = -1
 2, t1, t1, 3 // t1 = 0
 3, x1, m, 13 // check if x1==0

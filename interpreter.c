@@ -26,6 +26,7 @@ typedef enum
     CHANGE,
     CHANGE_SIZE,
     SAVE
+
 } parse_type;
 
 typedef enum 
@@ -150,9 +151,17 @@ all_macros* defined_progs = NULL;
 
 int n = -1;
 
+
+// FUNCTIONS
+void err_print(const char* ERR_MSG);
+char* set_program_name();
+bool check_char(char c);
+extract_num* extract_num_from_string(char * buffer);
+bool check_vname_valid(char* var_name, prog_vars_set* all_vars);
 void interpreter_mode();
 void new_program();
-int eval(int i, char* cmdline, code_line* code_line, prog_vars_set* all_vars);
+int eval(int i, char* cmdline, code_line* cline, prog_vars_set* all_vars, bool is_file, FILE* in);
+void process_program(int n, prog_vars_set* all_vars, char* prog_name, char* res_vname);
 
 
 void err_print(const char* ERR_MSG)
@@ -161,6 +170,7 @@ void err_print(const char* ERR_MSG)
     printf("\t%s", ERR_MSG);
     printf("\033[0m");
 }
+
 char* set_program_name()
 {
     char* name = malloc(20* sizeof(char));
@@ -366,14 +376,13 @@ parse_type exec(char *cmdline)
     if(!strncmp(cmdline, "change", 6))
         return CHANGE;
 
-
-    else if (!strncmp(cmdline, "new", 3))
+    if (!strncmp(cmdline, "new", 3))
         return RESTART;
 
-    else if (!strncmp(cmdline, "*", 1))
+    if (!strncmp(cmdline, "*", 1))
         return REF_LINE;
 
-    else if(!strncmp(cmdline, "//", 2))
+    if(!strncmp(cmdline, "//", 2))
         return COMMENT;
 
     return TO_EVAL;
@@ -477,7 +486,8 @@ void process_program(int n, prog_vars_set* all_vars, char* prog_name, char* res_
 
             case TO_EVAL:
                 //TODO 
-                new = eval(i, code[i] -> line, code[i], all_vars);
+
+                new = eval(i, code[i] -> line, code[i], all_vars, false, stdin);
                 if(new==i)
                 {
                     free(code[i]-> line);
@@ -555,7 +565,7 @@ void process_program(int n, prog_vars_set* all_vars, char* prog_name, char* res_
                 printf("%s\n... %d, ", NEW_LINE_INPUT_MSG, line_no);
                 scanf(" %[^\n]", new_code_line-> line);
 
-                new_l = eval(line_no, new_code_line-> line, new_code_line, all_vars);
+                new_l = eval(line_no, new_code_line-> line, new_code_line, all_vars, false, stdin);
                 if(new_l!=line_no)
                 {
                     free(code[line_no]);
@@ -585,6 +595,13 @@ void process_program(int n, prog_vars_set* all_vars, char* prog_name, char* res_
                     printf("> %d, %s\n", found_ref->i, code[found_ref->i]-> line);
                 } 
 
+                break;
+
+            case COMMENT:
+
+                free(code[i] -> line);
+                free(code[i]);
+                i++;
                 break;
 
             default:
@@ -661,7 +678,7 @@ void display_code(code_line** code, int line_nums)
 
 
 
-int process_macro_line(int i, code_line* cline, char* macros_name, char* remaining_str, prog_vars_set* all_vars)
+int process_macro_line(int i, code_line* cline, char* macros_name, char* remaining_str, prog_vars_set* all_vars, bool is_file, FILE* in)
 {
     all_macros *macro;
     prog_vars_set* var;
@@ -670,39 +687,103 @@ int process_macro_line(int i, code_line* cline, char* macros_name, char* remaini
     HASH_FIND_STR(defined_progs, macros_name, macro);
     if(macro == NULL)
     {
-
         printf("\t^\nNo macro named %s found\n", macros_name);
         return i;
     }
 
     char display;
-    printf("%s\n", DISPLAY_MACRO_MSG);
-    scanf("%c", &display);
-
-    if(display=='y')
-        display_code(macro->code, macro->line_nums);
-
-    for(var = macro->all_vars; var != NULL; ) 
+    
+    if(!is_file )
     {
-        printf("%s:  ", var-> var_name);
-        scanf("%s", variable_vals);
-        prog_vars_set* var;
+        printf("%s\n", DISPLAY_MACRO_MSG);
+        scanf("%c", &display);
+        if(display=='y')
+            display_code(macro->code, macro->line_nums);
 
-        HASH_FIND_STR(all_vars, variable_vals, var);
-
-        if(!var)
-            printf("No variable named %s defined\n", variable_vals);
-        else
+        for(var = macro->all_vars; var != NULL; ) 
         {
-            prog_vars_refs* to_add =  malloc(sizeof(prog_vars_refs));
-            to_add-> var_name = var-> var_name;
-            to_add-> ref = variable_vals;
-            var = var->hh.next;
+            if(strncmp(var -> var_name, "z", 1))
+            {
+                var = var-> hh.next;
+                continue;
+            }
 
-        }
+            printf("%s:  ", var-> var_name);
+            fscanf(in, "%s ", variable_vals);
+            prog_vars_set* var;
+
+            HASH_FIND_STR(all_vars, variable_vals, var);
+
+            if(!var)
+            {
+                printf("No variable named %s defined\n", variable_vals);
+                return -1;
+            }
+            else
+            {
+                prog_vars_refs* to_add =  malloc(sizeof(prog_vars_refs));
+                to_add-> var_name = var-> var_name;
+                to_add-> ref = variable_vals;
+                var = var->hh.next;
+
+            }
 
             
+        }
+
     }
+
+    else
+    {
+        int c = 0;
+        int start = 0;
+        int length = 0;
+        for(var = macro->all_vars; var != NULL; ) 
+        {
+            if(strncmp(var -> var_name, "z", 1))
+            {
+                var = var-> hh.next;
+                continue;
+            }
+
+            while(remaining_str[c]==' ')
+            {
+                c++;
+            }
+
+            start = c;
+            length = 0;
+
+            while(remaining_str[c]!= '\0' && remaining_str[c]!=' ' && remaining_str[c]!='\n')
+            {
+                length++;
+                c++;
+            }
+
+            substr(variable_vals, remaining_str, start, length);
+            prog_vars_set* found_var;
+
+            HASH_FIND_STR(all_vars, variable_vals, found_var);
+
+            if(!found_var)
+            {
+                printf("No variable named %s defined\n", variable_vals);
+                return -1;
+            }
+            else
+            {
+
+                prog_vars_refs* to_add =  malloc(sizeof(prog_vars_refs));
+                to_add-> var_name = var-> var_name;
+                to_add-> ref = variable_vals;
+                var = var->hh.next;
+
+            }
+
+            
+        }
+    }
+
 
     cline -> linet = MACRO;
     cline -> pv = malloc(sizeof(union parsed_vals));
@@ -728,7 +809,6 @@ first_key* extract_first_key(char* string)
     char* dst  =  malloc(sizeof(char)*(c+1));
     dst = substr(dst, string, 0, c);
     res->val = dst;
-    
     if(string[c]=='\0')
     {
         res -> c = c;
@@ -737,16 +817,18 @@ first_key* extract_first_key(char* string)
 
     if(string[c] != ',')
     {
-
         while(string[c]!='\0' && string[c] == ' ')
         {
             c++;
         }
+        printf("%c\n", string[c]);
     }
 
     if(string[c]==',')
         var = true;
 
+    else
+        c--;
 
     res -> intended_var = var;
     res-> c = c;
@@ -814,28 +896,23 @@ int process_var_line(int i, code_line* cline, char* var1_name, char* remaining_s
 
 
 
-int eval(int i, char* cmdline, code_line* cline, prog_vars_set* all_vars)
+int eval(int i, char* cmdline, code_line* cline, prog_vars_set* all_vars, bool is_file, FILE* in)
 {
     bool var;
     int c;
     char* dst;
-
-
     if(cmdline[0] == '\0')
     {
         return i;
     }
 
+
+
     first_key*  res = extract_first_key(cmdline);
-
     c =  res -> c;
-
-
     var = res -> intended_var;
     dst =  res -> val;
-
     c++;
-
     while(cmdline[c]!='\0' && cmdline[c]==' ')   
     {
         c++;
@@ -845,8 +922,7 @@ int eval(int i, char* cmdline, code_line* cline, prog_vars_set* all_vars)
     {
         return process_var_line(i, cline, dst, cmdline+c, all_vars);
     }
-
-    return process_macro_line(i, cline, dst, cmdline+1, all_vars);
+    return process_macro_line(i, cline, dst, cmdline+c, all_vars, is_file, in);
 
 }
 
@@ -915,13 +991,10 @@ int execute_code(prog_vars_vals* init_var_vals, all_macros* macro)
     code = macro -> code;
     prog_vars_vals* to_add_m;
     prog_vars_vals* var_v;
-    printf("Num lines = %d\n",n );
     
     while(i <= n)
     {
-        printf("%d\n", i );
         curr_cline = code[i];
-        printf("OK\n");
 
         switch(curr_cline->linet)
         {
@@ -1015,7 +1088,6 @@ int run(char* cmdline)
     scanf("%1s", display);
     display[1] = '\0';
 
-    printf("Here: %c", display[0]);
     
     if(display[0]=='y')
     {
@@ -1028,10 +1100,13 @@ int run(char* cmdline)
     z_var -> value =  1;
     HASH_ADD_STR(var_vals, var_name, z_var);
 
-    for(vars = macro->all_vars; vars != NULL; vars = vars->hh.next) 
+    for(vars = macro->all_vars; vars != NULL; ) 
     {
         if(!strcmp(vars-> var_name, "z"))
+        {
+            vars = vars->hh.next;
             continue;
+        }
         prog_vars_vals* new_var = malloc(sizeof(prog_vars_vals));
         new_var -> var_name = vars -> var_name;
         printf("%s: ", vars->var_name);
@@ -1041,16 +1116,255 @@ int run(char* cmdline)
         extract_num* e= extract_num_from_string(val);
         if(! e -> is_number)
         {
-            printf("%s\n", INVALID_NUMBER_ERR);
+            err_print(INVALID_NUMBER_ERR);
             free(val);
+            free(new_var);
             continue;
         }
 
         new_var->value =  e -> number;
         free(val);
         HASH_ADD_STR(var_vals, var_name, new_var);
+        vars = vars->hh.next;
     }
     return execute_code(var_vals, macro);
+}
+
+char* extract_first_word(char* line)
+{
+    char* val = malloc(16*sizeof(char));
+    int c = 0;
+    while(line[c]!= '\0' && line[c] != ' ' && line[c]!= '\n')
+    {
+        val[c] =  line[c];
+        c++;
+    }
+
+    val[c] = '\0';
+
+    return val;
+}
+
+
+
+int process_file_macros(char* file_name)
+{
+    printf("%s\n", file_name);
+    char* command ;
+    int size; 
+    char* prog_name = malloc(16*sizeof(char));
+    FILE* file = fopen(file_name, "r");
+    if(file == NULL)
+    {
+        err_print("^ No such macro found\n");
+        return -1;
+    }
+    prog_vars_set* res_vars = malloc(sizeof(prog_vars_set));
+    strcpy(prog_name, file_name);
+    
+    char* line = malloc(128*sizeof(char));
+    strcpy(line, "//");
+
+    while(line[0] == '\0' || line[0] == '\n' || !strncmp(line, "//", 2))
+    {
+        line = malloc(128*sizeof(char));
+        if(fgets(line, 128, file )==NULL)
+        {
+            err_print("\nPlease enter size\n");
+            return -1;
+        }
+    }
+
+
+    char* fsize = extract_first_word(line);
+    extract_num* esize = extract_num_from_string(fsize);
+    if(! esize -> is_number)
+    {
+        printf("wut");
+        err_print(INVALID_NUMBER_ERR);
+        free(esize);
+        return -1;
+    }
+    size = esize-> number;
+
+    code_line** code = malloc((size+1)*sizeof(code_line*));
+    line = "//";
+    while(line[0] == '\0' || line[0] == '\n' || !strncmp(line, "//", 2))
+    {
+        line = malloc(128*sizeof(char));
+        if(fgets(line, 128, file )==NULL)
+        {
+            err_print("\nPlease enter num_vars\n");
+            return -1;
+        }
+
+    }
+
+    char* fnum_inputs = extract_first_word(line);
+    extract_num* enum_inputs = extract_num_from_string(fnum_inputs);
+    if(! enum_inputs -> is_number)
+    {
+        err_print(INVALID_NUMBER_ERR);
+        free(enum_inputs);
+        return -1;
+    }
+
+
+    int num_vars = enum_inputs-> number;
+    prog_vars_set* all_vars = NULL;
+    bool is_valid = true;
+    char* temp;
+    prog_vars_set* to_add;
+    char* var;
+    prog_vars_set* z_var;
+    temp = malloc(16 * sizeof(char)) ;
+    char* res_vname = malloc(16 * sizeof(char)) ;
+
+    strcpy(temp, "z");
+    z_var = malloc(sizeof(prog_vars_set));
+    z_var -> var_name =  temp;
+    HASH_ADD_STR(all_vars, var_name, z_var);
+
+    for(int i = 0; i<num_vars; i++)
+    {
+        var = malloc(16 * sizeof(char)) ;
+        to_add = malloc(sizeof(prog_vars_set));
+        fgets ( var, 128, file );
+        var = extract_first_word(var);
+        if(var==NULL)
+        {
+            err_print("\nNot enough variables\n");
+            return -1;
+        }
+
+        is_valid = check_vname_valid(var, all_vars);
+        if(! is_valid)
+        {
+            printf("%s\n", var);
+            free(var);
+            return -1;
+        }
+        to_add->var_name = var;
+        HASH_ADD_STR(all_vars, var_name, to_add);
+    }
+
+    fgets ( res_vname, 16, file );
+
+    if(res_vname ==  NULL)
+    {
+        err_print("\nPlease enter result variable\n");
+        return -1;
+    }
+    res_vname = extract_first_word(res_vname);
+    is_valid = check_vname_valid(res_vname, all_vars);
+    if(! is_valid)
+    {
+        printf("%s\n", res_vname);
+        free(res_vname);
+        err_print("^ Please check variable nomenclature");
+        return -1;
+    }    
+
+    res_vars = malloc(sizeof(prog_vars_set));
+
+    res_vars -> var_name = res_vname;
+    HASH_ADD_STR( all_vars, var_name, res_vars );
+    int i = 1;
+    int new;
+    char* nline;
+    char* indicated_num = malloc(128* sizeof(char)); // optional
+    extract_num* e;
+    int i_num;
+    int c;
+    while(i<=size)
+    {
+        c = 0;
+        nline =  "//";
+        code[i] = malloc(sizeof(code_line));
+        while(nline[0] == '\0' || nline[0] == '\n' ||  !strncmp(nline, "//", 2))
+        {
+            nline = malloc(128*sizeof(char));
+            if(fgets(nline, 128, file )==NULL)
+            {
+                err_print("\nPlease enter number of lines - comments = num_lines\n");
+                return -1;
+            }
+        }
+
+        while(nline[c]!= '\0' && nline[c]!= ',')
+        {
+            indicated_num[c] = nline[c];
+            c++;
+        }
+        indicated_num[c] = '\0';
+
+        while(nline[c]!= ' ')
+            c++;
+
+        if(nline[c] == ',')
+        {  
+            e = extract_num_from_string(indicated_num);
+            if(! e -> is_number)
+            {
+                printf("%s\n",nline );
+                printf("%s\n", INVALID_NUMBER_ERR);
+                free(e);
+                return -1;
+            }
+            i_num = e-> number;
+
+            if(i_num != i)
+            {
+                printf("%s\n",nline );
+                printf("First number should be\n");
+                return -1;
+            }
+
+        }
+        while(nline[c] != '\0' &&  nline[c]==' ')
+            c++;
+
+        int line_l = 0;
+        int t = c;
+
+        while(nline[t]!= '\0' && nline[t]!= '\\')
+        {
+            
+            if(!strncmp(nline+t, "//", 2))
+                break;
+
+            t++;
+            line_l++; 
+        }
+
+        command = malloc(128*sizeof(char));
+        substr(command, nline, c, line_l) ;
+        new = eval(i, command, code[i], all_vars, true, file);
+        if(new==-1)
+        {
+            printf("Please check the format of this line\n %s\n", code[i]-> line );
+            free(nline);
+            free(code[i]);
+            return -1;
+        }
+
+        if(new==i)
+        {
+            free(code[i]-> line);
+            free(code[i]);           
+        }
+        i = new;
+
+    }
+
+    all_macros *macro = malloc(sizeof(all_macros));
+    macro-> prog_name = prog_name;
+    macro-> code = code;
+    macro-> line_nums = n;
+    macro-> all_vars = all_vars;
+    macro-> res_var = res_vname;
+    HASH_ADD_STR( defined_progs, prog_name, macro );
+    return 0;
 }
 
 
@@ -1059,27 +1373,30 @@ void interpreter_mode()
 {
 
     char* input =  malloc(128*sizeof(char));
-    int c;
-
     while(true)
     {
         printf("%s", PROMPT);
-        scanf("%s",  input);
-        c = 0;
-        
+        scanf(" %[^\n]", input);        
 
-        if(!strncmp(input+c, "new", 3))
+        if(!strncmp(input, "new", 3))
         {
             new_program();
         }
 
-        else if(!strncmp(input+c, "run", 3))
+        else if(!strncmp(input, "run", 3))
         {
             int res = run(input+3);
             printf("RESULT : %d\n", res);
         }
+        
+        else if(!strncmp(input, "import", 6))
+        {
+            process_file_macros(input+7);
 
-        else if(!strncmp(input+c, "exit", 4))
+        }
+
+
+        else if(!strncmp(input, "exit", 4))
         {
             free(input);
             printf("Exiting interpreter_mode\n");
@@ -1104,6 +1421,10 @@ void help()
     printf("%s\n", ARG_F);
 }
 
+
+
+
+
 int main(int argc, char **argv)
 {
     int opt;
@@ -1115,6 +1436,7 @@ int main(int argc, char **argv)
         	    help();
         		exit(0);
                 break;
+
 
             case 'n':
                 n = atoi(optarg);

@@ -40,4 +40,4 @@ const char* VNAME_MACRO_ERR = "Variable names cannot be macro-names";
 const char* VAR_NAME_EXTS_ERR = "Variable name already exists, please choose another name";
 const char* EXPECTED_FORMAT = "Expected format: <var1_name>, <var2_name>, <line_no>";
 const char* CHANGE_EXPECTED_FORMAT = "Expected format: change <line_number>";
-const char* INVALID_NUMBER_ERR = "\t>Please enter valid number";
+const char* INVALID_NUMBER_ERR = "\t> Please enter valid natural number";

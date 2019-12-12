@@ -1,0 +1,5 @@
+// dec r k l
+x+1, t, t, x+4 // t = 0
+x+2, r, z, x+3 // r = r-1
+x+3, t, t, k // go to k 
+x+4, r, t, l // goes to l if r = 0
