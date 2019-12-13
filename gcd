@@ -1,0 +1,31 @@
+// gcd x y c
+20 //length
+7 //num_input
+x 
+y
+x1
+nx
+y1
+ny
+t3
+c //response
+1, c, c, 2
+2, nx, nx, 3 // nx = 0
+3, x1, x1, 4 // x1 = 0
+4, ny, ny, 5 // ny = 0
+5, y1, y1, 6 // y1 = 0
+6, nx, x, 16 // nx = -x
+7, x1, nx, 10 // x1 = t1
+8, ny, y, 19 // ny = -y
+9, y1, ny, 10 // y1 = y
+10, max x y x1 nx y1 ny t3 x1 
+11, x1, x, 14 // see which is greater
+12, mod y x t3 t3 t3 t3 t3 y
+13, t3, t3, 2
+14, mod x y t3 t3 t3 t3 t3 x
+15, t3, t3, 2
+16, ny, y, 17 // ny = -y
+17, c, ny, 21 // c = y
+18, t3, t3, 21
+19, c, nx, 21
+20, t3, t3, 21

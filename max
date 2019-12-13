@@ -1,0 +1,26 @@
+// max x y c
+15 //length
+7 //num_input
+x 
+y
+x1
+nx
+y1
+ny
+t3
+c //response
+1, c, c, 2
+2, nx, nx, 3 // nx = 0
+3, x1, x1, 4 // x1 = 0
+4, ny, ny, 5 // ny = 0
+5, y1, y1, 6 // y1 = 0
+6, nx, x, 7 // nx = -x
+7, x1, nx, 8 // x1 = t1
+8, ny, y, 9 // ny = -y
+9, y1, ny, 10 // y1 = y
+10, x1, z, 13 // y1 = y1-1
+11, y1, z, 15 // y2 = y2-1
+12, t3, t3, 10
+13, c, ny, 16  // c = y
+14, t3, t3, 16
+15, c, nx, 16 // c = x

@@ -1,11 +1,15 @@
 // exp x1 x2 y
-3 //length
-3 //num_input
+6 //length
+5 //num_input
 x1 
-x2 
+x2
 t3
 u //auxillary
+v
 y //response
-1, x1, z, 3
-2, mult y x2 u y 
-3, t3, t3, 1
+1, v, z, 2 // v = -1
+2, y, v, 3 // y = 1
+3, x2, u, 7 
+4, x2, z, 5
+5, mult y x1 t3 u y
+6, t3, t3, 3

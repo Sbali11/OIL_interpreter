@@ -1,11 +1,13 @@
 //mult x1 x2 y
-3 //length
+5 //length
 4 //num_input
 x1 
 x2
 t3
 u //auxillary
 y //response
-1, x1, z, 3
-2, add y x2 u y
-3, t3, t3, 1
+1, y, y, 2
+2, x1, u, 6
+3, x1, z, 4
+4, add y x2 u y
+5, t3, t3, 2
