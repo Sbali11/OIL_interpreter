@@ -1,0 +1,16 @@
+// pseudo_random a x_{n} b m ->  x_{n+1}
+6 // length
+6 // num_inputs
+a
+x
+b
+m
+t3
+nb
+newx // response
+1, nb, nb, 2
+2, t3, t3, 3 
+3, nb, b, 4 // nb = b 
+4, mult a x t3 t3 newx // newx = ax 
+5, newx, nb, 12 // newx =  ax+b
+6, mod newx m t3 t3 t3 t3 t3 newx // newx =  (ax+b) % m
