@@ -19,13 +19,13 @@ File structure
 1. interpreter.c : the main function to simulate and process the interpreter
 2. constants.c, constants.h : holds majority of the prompts used
 3. Several oil macros
-    > add
-    > mult
-    > div
-    > exp
-    > mod
-    > gcd
-    > pseudo_random
+    - add
+    - mult
+    - div
+    - exp
+    - mod
+    - gcd
+    - pseudo_random
 
 See below for the main options to use in the interpreter
 
