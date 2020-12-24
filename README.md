@@ -52,7 +52,7 @@ line_number , - {varline,macro line, * , change_size, change <line_num> }
 
 ```
 1. varline :  x, y, t => x = x-y if now x==0, go to t else go to next line
-2. macro line : <macro_name> x1, x2, x3, .... xn y
+2. macro line : <macro_path> x1, x2, x3, .... xn y
 computes the macro accoriding to curr values of input_vars(x s) and stores the result in y
 (xi s and y are variables of the current program)
 Automatically goes to the next line
