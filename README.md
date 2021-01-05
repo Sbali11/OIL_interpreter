@@ -3,8 +3,6 @@
 # Interpreter for classical One Instruction Language
 
 
-Basic Information:
-------------------------------------------------------------------------------------------------
  ```
 Compile : gcc -Wall -o in interpreter.c constants.c
 Run: ./in -i
